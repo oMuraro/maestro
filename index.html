@@ -304,6 +304,7 @@
         let unsubRoom = null;
         let unsubPlayers = null;
         let localPlayer = null;
+        let acceptingInput = false;
 
         function log(msg) {
             const t = new Date().toLocaleTimeString();
@@ -533,6 +534,9 @@
         // When master makes a move, players have X ms to respond. We'll store each player's lastMove in their doc and evaluate when time's up.
         function runPlayerWindow(expectedMove, windowMs) {
             timerEl.textContent = 'Tempo: ' + (windowMs / 1000).toFixed(2) + 's';
+
+            acceptingInput = true;
+
             const end = Date.now() + windowMs;
             // listen to keyboard during window
             const buffer = {};
@@ -550,12 +554,13 @@
 
             // after windowMs, evaluate all players
             setTimeout(async () => {
+                acceptingInput = false;
                 window.removeEventListener('keydown', onKey);
                 timerEl.textContent = 'Tempo: 0s';
 
                 // 🔧 Correção: dar tempo do Firestore replicar todos lastMove
                 await new Promise(res => setTimeout(res, 300));
-                
+
                 // snapshot players and evaluate
                 const roomPlayers = await db.collection('rooms').doc(currentRoomId).collection('players').get();
                 const batch = db.batch();
@@ -598,9 +603,18 @@
 
         // Simple helper to show initial demo room if you want to test quickly
         // Keyboard listener while not in window: update UI only
-        document.addEventListener('keydown', (e) => {
-            // only send lastMove when window running; handled per runPlayerWindow
+        document.addEventListener("keydown", (e) => {
+            if (!acceptingInput) return;
+
+            const map = { w: "UP", s: "DOWN", a: "LEFT", d: "RIGHT" };
+            const m = map[e.key.toLowerCase()];
+            if (!m) return;
+
+            db.collection("rooms").doc(currentRoomId)
+                .collection("players").doc(currentPlayerId)
+                .update({ lastMove: m });
         });
+
 
         // --- end script ---
     </script>
